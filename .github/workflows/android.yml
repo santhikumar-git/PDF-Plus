@@ -30,8 +30,47 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate Android project files
+      - name: Generate Android project
         run: flutter create --platforms=android .
+
+      - name: Set Android Compile SDK to 36
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          groovy = Path("android/app/build.gradle")
+          kotlin = Path("android/app/build.gradle.kts")
+
+          if groovy.exists():
+              path = groovy
+              patterns = [
+                  (r'(?m)^(\s*)compileSdkVersion\s+.*$',
+                   r'\g<1>compileSdkVersion 36'),
+                  (r'(?m)^(\s*)compileSdk\s+.*$',
+                   r'\g<1>compileSdk 36'),
+              ]
+          elif kotlin.exists():
+              path = kotlin
+              patterns = [
+                  (r'(?m)^(\s*)compileSdk\s*=.*$',
+                   r'\g<1>compileSdk = 36'),
+              ]
+          else:
+              raise SystemExit("Android app Gradle file not found")
+
+          content = path.read_text()
+          original = content
+
+          for pattern, replacement in patterns:
+              content = re.sub(pattern, replacement, content)
+
+          if content == original:
+              raise SystemExit("Could not find compileSdk setting")
+
+          path.write_text(content)
+          print(f"Updated {path} to compile SDK 36")
+          PY
 
       - name: Get dependencies
         run: flutter pub get
