@@ -1,3 +1,4 @@
+cat > .github/workflows/android.yml <<'YAML'
 name: PDF Plus Android APK
 
 on:
@@ -39,39 +40,61 @@ jobs:
           from pathlib import Path
           import re
 
-          groovy = Path("android/app/build.gradle")
-          kotlin = Path("android/app/build.gradle.kts")
+          files = [
+              Path("android/app/build.gradle"),
+              Path("android/app/build.gradle.kts"),
+          ]
 
-          if groovy.exists():
-              path = groovy
-              patterns = [
-                  (r'(?m)^(\s*)compileSdkVersion\s+.*$',
-                   r'\g<1>compileSdkVersion 36'),
-                  (r'(?m)^(\s*)compileSdk\s+.*$',
-                   r'\g<1>compileSdk 36'),
-              ]
-          elif kotlin.exists():
-              path = kotlin
-              patterns = [
-                  (r'(?m)^(\s*)compileSdk\s*=.*$',
-                   r'\g<1>compileSdk = 36'),
-                  (r'(?m)^(\s*)compileSdk\s+.*$',
-                   r'\g<1>compileSdk = 36'),
-              ]
-          else:
+          files = [p for p in files if p.exists()]
+
+          if not files:
               raise SystemExit("Android app Gradle file not found")
 
-          content = path.read_text()
-          original = content
+          for path in files:
+              content = path.read_text()
 
-          for pattern, replacement in patterns:
-              content = re.sub(pattern, replacement, content)
+              pattern = re.compile(
+                  r"(?m)^([ \t]*)(compileSdkVersion|compileSdk)\b[^\r\n]*$"
+              )
 
-          if content == original:
-              raise SystemExit("Could not find compileSdk setting")
+              if pattern.search(content):
+                  updated = pattern.sub(
+                      lambda m: (
+                          m.group(1)
+                          + ("compileSdk = 36" if path.suffix == ".kts"
+                             else "compileSdkVersion 36")
+                      ),
+                      content,
+                      count=1
+                  )
+              else:
+                  android = re.search(
+                      r"(?m)^([ \t]*)android\s*\{",
+                      content
+                  )
 
-          path.write_text(content)
-          print(f"Updated {path} to compile SDK 36")
+                  if not android:
+                      raise SystemExit(
+                          f"Android block not found in {path}"
+                      )
+
+                  indent = android.group(1) + "    "
+                  sdk_line = (
+                      "compileSdk = 36"
+                      if path.suffix == ".kts"
+                      else "compileSdkVersion 36"
+                  )
+
+                  updated = (
+                      content[:android.end()]
+                      + "\n"
+                      + indent
+                      + sdk_line
+                      + content[android.end():]
+                  )
+
+              path.write_text(updated)
+              print(f"Configured Android SDK 36: {path}")
           PY
 
       - name: Get dependencies
@@ -84,6 +107,7 @@ jobs:
           import re
 
           root = Path.home() / ".pub-cache/hosted/pub.dev"
+
           files = list(root.glob("file_picker-*/android/build.gradle"))
           files += list(root.glob("file_picker-*/android/build.gradle.kts"))
 
@@ -92,22 +116,51 @@ jobs:
 
           for path in files:
               content = path.read_text()
-              updated = re.sub(
-                  r'(?m)^(\s*compileSdkVersion\s+).+$',
-                  r'\g<1>36',
-                  content
-              )
-              updated = re.sub(
-                  r'(?m)^(\s*compileSdk\s*=?\s*).+$',
-                  r'\g<1>36',
-                  updated
+
+              pattern = re.compile(
+                  r"(?m)^([ \t]*)(compileSdkVersion|compileSdk)\b[^\r\n]*$"
               )
 
-              if updated == content:
-                  raise SystemExit(f"Could not update Compile SDK in {path}")
+              if pattern.search(content):
+                  sdk_line = (
+                      "compileSdk = 36"
+                      if path.suffix == ".kts"
+                      else "compileSdkVersion 36"
+                  )
+
+                  updated = pattern.sub(
+                      lambda m: m.group(1) + sdk_line,
+                      content,
+                      count=1
+                  )
+              else:
+                  android = re.search(
+                      r"(?m)^([ \t]*)android\s*\{",
+                      content
+                  )
+
+                  if not android:
+                      raise SystemExit(
+                          f"Android block not found in {path}"
+                      )
+
+                  indent = android.group(1) + "    "
+                  sdk_line = (
+                      "compileSdk = 36"
+                      if path.suffix == ".kts"
+                      else "compileSdkVersion 36"
+                  )
+
+                  updated = (
+                      content[:android.end()]
+                      + "\n"
+                      + indent
+                      + sdk_line
+                      + content[android.end():]
+                  )
 
               path.write_text(updated)
-              print(f"Updated {path} to Compile SDK 36")
+              print(f"Configured file_picker SDK 36: {path}")
           PY
 
       - name: Build release APK
@@ -116,6 +169,7 @@ jobs:
       - name: Upload PDF Plus APK
         uses: actions/upload-artifact@v4
         with:
-          name: PDF-Plus-Android-APK
+          name: PDF-Plus-Release-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+YAML
