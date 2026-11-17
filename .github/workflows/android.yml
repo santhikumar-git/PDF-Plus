@@ -55,6 +55,8 @@ jobs:
               patterns = [
                   (r'(?m)^(\s*)compileSdk\s*=.*$',
                    r'\g<1>compileSdk = 36'),
+                  (r'(?m)^(\s*)compileSdk\s+.*$',
+                   r'\g<1>compileSdk = 36'),
               ]
           else:
               raise SystemExit("Android app Gradle file not found")
@@ -74,6 +76,39 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Fix file_picker Compile SDK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path.home() / ".pub-cache/hosted/pub.dev"
+          files = list(root.glob("file_picker-*/android/build.gradle"))
+          files += list(root.glob("file_picker-*/android/build.gradle.kts"))
+
+          if not files:
+              raise SystemExit("file_picker Gradle file not found")
+
+          for path in files:
+              content = path.read_text()
+              updated = re.sub(
+                  r'(?m)^(\s*compileSdkVersion\s+).+$',
+                  r'\g<1>36',
+                  content
+              )
+              updated = re.sub(
+                  r'(?m)^(\s*compileSdk\s*=?\s*).+$',
+                  r'\g<1>36',
+                  updated
+              )
+
+              if updated == content:
+                  raise SystemExit(f"Could not update Compile SDK in {path}")
+
+              path.write_text(updated)
+              print(f"Updated {path} to Compile SDK 36")
+          PY
 
       - name: Build release APK
         run: flutter build apk --release
