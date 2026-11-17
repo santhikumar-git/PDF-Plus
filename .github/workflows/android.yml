@@ -35,6 +35,32 @@ jobs:
           cp /tmp/main.dart lib/main.dart
           cp /tmp/pubspec.yaml pubspec.yaml
 
+      - name: Update Android compile SDK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path("android/app/build.gradle.kts"),
+              Path("android/app/build.gradle"),
+          ]
+
+          for path in files:
+              if path.exists():
+                  content = path.read_text()
+                  content = content.replace(
+                      "flutter.compileSdkVersion", "36"
+                  )
+                  content = content.replace(
+                      "flutter.compileSdkVersion", "36"
+                  )
+                  path.write_text(content)
+                  print(f"Updated {path}")
+                  break
+          else:
+              raise SystemExit("Android Gradle file not found")
+          PY
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -46,3 +72,4 @@ jobs:
         with:
           name: PDF-Plus-Android
           path: build/app/outputs/flutter-apk/app-release.apk
+
