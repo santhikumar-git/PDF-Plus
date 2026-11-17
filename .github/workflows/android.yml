@@ -1,3 +1,8 @@
+
+cd ~/PDFPLUS
+mkdir -p .github/workflows
+
+cat > .github/workflows/android.yml <<'YAML'
 name: PDF Plus Android Build
 
 on:
@@ -6,62 +11,42 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Generate Android project
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
         run: |
-          cp lib/main.dart /tmp/main.dart
-          cp pubspec.yaml /tmp/pubspec.yaml
-          flutter create --platforms=android --project-name pdf_plus --org com.pdfplus .
-          cp /tmp/main.dart lib/main.dart
-          cp /tmp/pubspec.yaml pubspec.yaml
+          sdkmanager "platforms;android-36"
+          sdkmanager "build-tools;36.0.0"
 
-      - name: Update Android app compile SDK
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          files = [
-              Path("android/app/build.gradle.kts"),
-              Path("android/app/build.gradle"),
-          ]
-
-          for path in files:
-              if path.exists():
-                  content = path.read_text()
-                  updated = content.replace("flutter.compileSdkVersion", "36")
-                  if updated == content:
-                      raise SystemExit("Could not find compileSdkVersion in " + str(path))
-                  path.write_text(updated)
-                  print("Updated app compile SDK to 36:", path)
-                  break
-          else:
-              raise SystemExit("Android Gradle file not found")
-          PY
-
-      - name: Install dependencies
+      - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Update file_picker compile SDK
+      - name: Fix file_picker compile SDK
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -75,31 +60,30 @@ jobs:
 
           for path in files:
               content = path.read_text()
-              updated = content.replace("flutter.compileSdkVersion", "36")
+
               updated, count = re.subn(
-                  r"(?m)^(\s*compileSdkVersion\s+)\d+",
+                  r"(?m)^(\s*compileSdk(?:Version)?\s*(?:=\s*)?)\d+\b",
                   r"\g<1>36",
-                  updated
-              )
-              updated, count2 = re.subn(
-                  r"(?m)^(\s*compileSdk\s*=\s*)\d+",
-                  r"\g<1>36",
-                  updated
+                  content
               )
 
-              if updated == content:
-                  print(content)
-                  raise SystemExit("Could not update file_picker compile SDK")
+              if count == 0:
+                  raise SystemExit(
+                      f"Could not update compileSdk in {path}"
+                  )
 
               path.write_text(updated)
-              print("Updated file_picker compile SDK to 36:", path)
+              print(f"Updated compileSdk to 36: {path}")
           PY
 
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Upload APK
+      - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: PDF-Plus-Android
+          name: PDF-Plus-Android-APK
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+YAML
+
