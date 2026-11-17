@@ -1,5 +1,4 @@
-
-name: NUTRILENS Android APK
+name: PDF Plus Android APK
 
 on:
   push:
@@ -12,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build PDF Plus APK
     runs-on: ubuntu-latest
 
     steps:
@@ -31,20 +30,18 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Check Flutter
-        run: flutter doctor -v
+      - name: Generate Android project files
+        run: flutter create --platforms=android .
 
-      - name: Install dependencies
+      - name: Get dependencies
         run: flutter pub get
 
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Upload Android APK
+      - name: Upload PDF Plus APK
         uses: actions/upload-artifact@v4
         with:
-          name: NUTRILENS-Android-APK
+          name: PDF-Plus-Android-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-
-
